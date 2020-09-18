@@ -103,6 +103,8 @@ RUN set -x; \
 # Install Odoo source code and install it as a package inside the container with additional tools
 ENV ODOO_VERSION ${ODOO_VERSION:-12.0}
 
+RUN pip3 install --prefix=/usr/local --no-cache-dir --upgrade pip
+
 RUN pip3 install --no-cache-dir --prefix=/usr/local https://nightly.odoo.com/${ODOO_VERSION}/nightly/src/odoo_${ODOO_VERSION}.latest.zip \
     && pip3 -qq install --prefix=/usr/local --no-cache-dir --upgrade --requirement https://raw.githubusercontent.com/odoo/odoo/${ODOO_VERSION}/requirements.txt \
     && pip3 -qq install --prefix=/usr/local --no-cache-dir --upgrade \
@@ -178,7 +180,8 @@ ENV \
     TEST_ENABLE=${TEST_ENABLE:-False} \
     UNACCENT=${UNACCENT:-False} \
     WITHOUT_DEMO=${WITHOUT_DEMO:-False} \
-    WORKERS=${WORKERS:-0}
+    WORKERS=${WORKERS:-0} \
+    ODOO_VERSION=${ODOO_VERSION:-12.0}
 
 # Create app user
 ENV ODOO_USER odoo
@@ -194,7 +197,7 @@ RUN apt-get update \
     && addgroup --system --gid ${APP_GID} ${ODOO_USER} \
     && adduser --system --uid ${APP_UID} --ingroup ${ODOO_USER} --home ${ODOO_BASEPATH} --disabled-login --shell /sbin/nologin ${ODOO_USER} \
     # [Optional] Add sudo support for the non-root user & unzip for CI
-    && apt-get install -y ssh sudo zip unzip \
+    && apt-get install -y ssh sudo zip unzip git \
     && echo ${ODOO_USER} ALL=\(root\) NOPASSWD:ALL > /etc/sudoers.d/${ODOO_USER}\
     && chmod 0440 /etc/sudoers.d/${ODOO_USER} \
     #
@@ -213,17 +216,26 @@ ENV ODOO_LOGS_DIR ${ODOO_LOGS_DIR:-/var/lib/odoo/logs}
 ENV ODOO_EXTRA_ADDONS ${ODOO_EXTRA_ADDONS:-/mnt/extra-addons}
 ENV ODOO_ADDONS_BASEPATH ${ODOO_BASEPATH}/addons
 ENV ODOO_CMD ${ODOO_BASEPATH}/odoo-bin
+ENV ODOO_DOMINICANA_BASEPATH ${ODOO_DOMINICANA_BASEPATH:-/odoo-dominicana}
 
 # This is needed to fully build with modules and python requirements
 ENV HOST_CUSTOM_ADDONS ${HOST_CUSTOM_ADDONS:-/custom}
 
 RUN mkdir -p ${ODOO_DATA_DIR} ${ODOO_LOGS_DIR} ${ODOO_EXTRA_ADDONS} /etc/odoo/
 
+RUN echo "--branch=${ODOO_VERSION}"
+RUN git clone --branch=${ODOO_VERSION} https://github.com/odoo-dominicana/l10n-dominicana.git ${ODOO_DOMINICANA_BASEPATH}/l10n-dominicana \
+    && git clone --branch=${ODOO_VERSION} https://github.com/indexa-git/external_service_addons.git ${ODOO_DOMINICANA_BASEPATH}/external_service_addons
+
+RUN apt-get purge git -y --auto-remove \
+    && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false \
+    && rm -rf /var/lib/apt/lists/*
+
 # Copy custom modules from the custom folder, if any.
 COPY ${HOST_CUSTOM_ADDONS} ${ODOO_EXTRA_ADDONS}
 
 # Own folders    //-- docker-compose creates named volumes owned by root:root. Issue: https://github.com/docker/compose/issues/3270
-RUN chown -R ${ODOO_USER}:${ODOO_USER} ${ODOO_DATA_DIR} ${ODOO_LOGS_DIR} ${ODOO_BASEPATH} ${ODOO_EXTRA_ADDONS} /etc/odoo/ /entrypoint.sh /getaddons.py /usr/local/lib/python3.7/site-packages/odoo
+RUN chown -R ${ODOO_USER}:${ODOO_USER} ${ODOO_DATA_DIR} ${ODOO_LOGS_DIR} ${ODOO_BASEPATH} ${ODOO_EXTRA_ADDONS} ${ODOO_DOMINICANA_BASEPATH} /etc/odoo/ /entrypoint.sh /getaddons.py /usr/local/lib/python3.7/site-packages/odoo
 RUN chmod u+x /entrypoint.sh /getaddons.py
 
 VOLUME ["${ODOO_DATA_DIR}", "${ODOO_LOGS_DIR}", "${ODOO_EXTRA_ADDONS}"]
@@ -243,6 +255,8 @@ ENV PGHOST ${DB_PORT_5432_TCP_ADDR}
 ENV PGPORT ${DB_PORT_5432_TCP_PORT}
 ENV PGUSER ${DB_ENV_POSTGRES_USER}
 ENV PGPASSWORD ${DB_ENV_POSTGRES_PASSWORD}
+
+RUN python3 -m pip install -U pip
 
 RUN find ${ODOO_EXTRA_ADDONS} -name 'requirements.txt' -exec pip3 install --no-cache-dir -r {} \;
 

@@ -11,13 +11,29 @@ set -x
 export PGHOST PGPORT PGUSER PGPASSWORD
 
 # set all variables
-
 function getAddons() {
-
     EXTRA_ADDONS_PATHS=$(python3 getaddons.py ${ODOO_EXTRA_ADDONS} 2>&1)
+    DOMINICANA_ADDONS_PATH=$(python3 getaddons.py ${ODOO_DOMINICANA_BASEPATH} 2>&1)
+}
+
+function installRequirements() {
+    IFS=',' read -ra ADDR <<< "$1"
+    echo "======++++++++argumento installRequirements++++++++==========="
+    echo "$1"
+    echo "======++++++++++++++++==========="
+    for i in "${ADDR[@]}"; do
+        if [ "$PIP_AUTO_INSTALL" -eq "1" ]; then
+            echo "======+++++++++valor de i+++++++==========="
+            echo "$i"
+            echo "======++++++++++++++++==========="
+            find $i -name 'requirements.txt' -exec pip3 install --user -r {} \;
+        fi
+    done
 }
 
 getAddons
+
+ADDONS_PATH=${ODOO_ADDONS_BASEPATH},${DOMINICANA_ADDONS_PATH}
 
 if [ ! -f ${ODOO_RC} ]; then
 echo "
@@ -60,13 +76,15 @@ without_demo = ${WITHOUT_DEMO}
 workers = ${WORKERS}" > $ODOO_RC
     if [ -z "$EXTRA_ADDONS_PATHS" ]; then
         echo "The variable \$EXTRA_ADDONS_PATHS is empty, using default addons_path"
-        echo "addons_path = ${ODOO_ADDONS_BASEPATH}" >> $ODOO_RC
     else
-        if [ "$PIP_AUTO_INSTALL" -eq "1" ]; then
-            find $ODOO_EXTRA_ADDONS -name 'requirements.txt' -exec pip3 install --user -r {} \;
-        fi
-        echo "addons_path = ${ODOO_ADDONS_BASEPATH},${EXTRA_ADDONS_PATHS}" >> $ODOO_RC
+        ADDONS_PATH+=",${EXTRA_ADDONS_PATHS}"
+        installRequirements $ODOO_EXTRA_ADDONS
     fi
+    installRequirements $DOMINICANA_ADDONS_PATH
+    echo "======++++++++todos los directorios de modulos++++++++==========="
+    echo "${ADDONS_PATH}"
+    echo "======++++++++++++++++==========="
+    echo "addons_path = ${ADDONS_PATH}" >> $ODOO_RC
 fi
 
 DB_ARGS=()
