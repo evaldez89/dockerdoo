@@ -18,14 +18,8 @@ function getAddons() {
 
 function installRequirements() {
     IFS=',' read -ra ADDR <<< "$1"
-    echo "======++++++++argumento installRequirements++++++++==========="
-    echo "$1"
-    echo "======++++++++++++++++==========="
     for i in "${ADDR[@]}"; do
         if [ "$PIP_AUTO_INSTALL" -eq "1" ]; then
-            echo "======+++++++++valor de i+++++++==========="
-            echo "$i"
-            echo "======++++++++++++++++==========="
             find $i -name 'requirements.txt' -exec pip3 install --user -r {} \;
         fi
     done
@@ -81,9 +75,6 @@ workers = ${WORKERS}" > $ODOO_RC
         installRequirements $ODOO_EXTRA_ADDONS
     fi
     installRequirements $DOMINICANA_ADDONS_PATH
-    echo "======++++++++todos los directorios de modulos++++++++==========="
-    echo "${ADDONS_PATH}"
-    echo "======++++++++++++++++==========="
     echo "addons_path = ${ADDONS_PATH}" >> $ODOO_RC
 fi
 
