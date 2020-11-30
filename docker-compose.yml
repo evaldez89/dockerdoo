@@ -24,7 +24,9 @@ services:
       # Named volumes
       - odoo-data:${ODOO_DATA_DIR}
       - odoo-testlogs:${ODOO_LOGS_DIR}
-
+    environment:
+      - ADMIN_PASSWORD=-my-week-password
+      - PROXY_MODE=True
     depends_on:
       - db
     networks:
@@ -45,11 +47,13 @@ services:
   # ------------------------
   nginx:
     container_name: nginx
+    depends_on:
+      - odoo
     image: nginx:1.19.2
     restart: unless-stopped
     ports:
       - 80:80
-      - 443:443
+      # - 443:443
     volumes:
       - ./nginx/conf:/etc/nginx/conf.d
     networks:
